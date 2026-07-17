@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zomato Sales Dashboard</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: #0f172a;
+      --panel-2: #111c31;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #818cf8;
+      --success: #34d399;
+      --warning: #fbbf24;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, var(--bg), #0b1120 60%, #141d34);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    .subtitle { color: var(--muted); margin: 0; }
+
+    .controls select {
+      appearance: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #24324d;
+      background: var(--panel-2);
+      color: var(--text);
+      min-width: 220px;
+      font-size: 14px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 20px 45px rgba(2, 6, 23, 0.3);
+      backdrop-filter: blur(8px);
+    }
+
+    .stat-label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat-value { font-size: 26px; font-weight: 700; margin-top: 8px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart-card { min-height: 340px; }
+    svg { width: 100%; height: 260px; display: block; }
+    .chart-title { margin-bottom: 10px; font-size: 18px; }
+    .legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    th { color: var(--muted); font-weight: 600; }
+
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Zomato Sales Dashboard</h1>
+        <p class="subtitle">Restaurant performance and platform comparison insights</p>
+      </div>
+      <label class="controls">
+        <select id="cityFilter"></select>
+      </label>
+    </header>
+
+    <section class="stats-grid">
+      <div class="card">
+        <div class="stat-label">Total restaurants</div>
+        <div class="stat-value" id="totalRestaurants">--</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Avg. rating</div>
+        <div class="stat-value" id="avgRating">--</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Monthly revenue</div>
+        <div class="stat-value" id="monthlyRevenue">--</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Top city</div>
+        <div class="stat-value" id="topCity">--</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card chart-card">
+        <div class="chart-title">Revenue by city</div>
+        <svg id="revenueChart" viewBox="0 0 600 260"></svg>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-title">Platform performance</div>
+        <svg id="platformChart" viewBox="0 0 340 260"></svg>
+        <div class="legend" id="platformLegend"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card chart-card">
+        <div class="chart-title">Price category mix</div>
+        <svg id="priceChart" viewBox="0 0 600 260"></svg>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-title">Top cuisines</div>
+        <svg id="cuisineChart" viewBox="0 0 600 260"></svg>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="chart-title">Top restaurants by combined monthly revenue</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Restaurant</th>
+            <th>City</th>
+            <th>Type</th>
+            <th>Revenue</th>
+          </tr>
+        </thead>
+        <tbody id="topRestaurantsBody"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const cityFilter = document.getElementById('cityFilter');
+    const totalRestaurantsEl = document.getElementById('totalRestaurants');
+    const avgRatingEl = document.getElementById('avgRating');
+    const monthlyRevenueEl = document.getElementById('monthlyRevenue');
+    const topCityEl = document.getElementById('topCity');
+    const revenueChart = document.getElementById('revenueChart');
+    const platformChart = document.getElementById('platformChart');
+    const platformLegend = document.getElementById('platformLegend');
+    const priceChart = document.getElementById('priceChart');
+    const cuisineChart = document.getElementById('cuisineChart');
+    const topRestaurantsBody = document.getElementById('topRestaurantsBody');
+
+    const palette = ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#fb7185', '#f472b6', '#c084fc', '#2dd4bf'];
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let value = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (ch === '"') {
+          if (inQuotes && text[i + 1] === '"') {
+            value += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          row.push(value);
+          value = '';
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (ch === '\r' && text[i + 1] === '\n') i += 1;
+          row.push(value);
+          if (row.some(cell => cell !== '')) rows.push(row);
+          row = [];
+          value = '';
+        } else {
+          value += ch;
+        }
+      }
+
+      if (value.length > 0 || row.length > 0) {
+        row.push(value);
+        if (row.some(cell => cell !== '')) rows.push(row);
+      }
+
+      const headers = rows.shift() || [];
+      return rows.map(r => Object.fromEntries(headers.map((h, idx) => [h, (r[idx] || '').trim()])));
+    }
+
+    function toNumber(value) {
+      const n = Number(String(value).replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
+    }
+
+    function formatCompact(value) {
+      if (value >= 10000000) return `${(value / 10000000).toFixed(1)}Cr`;
+      if (value >= 100000) return `${(value / 100000).toFixed(1)}L`;
+      return value.toString();
+    }
+
+    function drawBarChart(svg, labels, values, color) {
+      const width = 600;
+      const height = 260;
+      const margin = { top: 20, right: 20, bottom: 40, left: 45 };
+      const chartW = width - margin.left - margin.right;
+      const chartH = height - margin.top - margin.bottom;
+      const maxValue = Math.max(...values, 1);
+      const barWidth = chartW / labels.length - 16;
+
+      svg.innerHTML = '';
+      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bg.setAttribute('x', '0');
+      bg.setAttribute('y', '0');
+      bg.setAttribute('width', width);
+      bg.setAttribute('height', height);
+      bg.setAttribute('fill', 'transparent');
+      svg.appendChild(bg);
+
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', margin.left);
+      xAxis.setAttribute('x2', width - margin.right);
+      xAxis.setAttribute('y1', height - margin.bottom);
+      xAxis.setAttribute('y2', height - margin.bottom);
+      xAxis.setAttribute('stroke', '#334155');
+      svg.appendChild(xAxis);
+
+      const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxis.setAttribute('x1', margin.left);
+      yAxis.setAttribute('x2', margin.left);
+      yAxis.setAttribute('y1', margin.top);
+      yAxis.setAttribute('y2', height - margin.bottom);
+      yAxis.setAttribute('stroke', '#334155');
+      svg.appendChild(yAxis);
+
+      labels.forEach((label, idx) => {
+        const barH = (values[idx] / maxValue) * chartH;
+        const x = margin.left + idx * (barWidth + 16) + 6;
+        const y = height - margin.bottom - barH;
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barWidth);
+        rect.setAttribute('height', barH);
+        rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', color);
+        rect.setAttribute('opacity', '0.9');
+        svg.appendChild(rect);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x + barWidth / 2);
+        text.setAttribute('y', y - 8);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#f8fafc');
+        text.setAttribute('font-size', '11');
+        text.textContent = formatCompact(values[idx]);
+        svg.appendChild(text);
+
+        const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        labelText.setAttribute('x', x + barWidth / 2);
+        labelText.setAttribute('y', height - margin.bottom + 22);
+        labelText.setAttribute('text-anchor', 'middle');
+        labelText.setAttribute('fill', '#94a3b8');
+        labelText.setAttribute('font-size', '10');
+        labelText.textContent = label.length > 12 ? label.slice(0, 12) + '…' : label;
+        svg.appendChild(labelText);
+      });
+    }
+
+    function drawDonutChart(svg, labels, values, colors) {
+      const width = 340;
+      const height = 260;
+      const radius = 90;
+      const centerX = 170;
+      const centerY = 120;
+      const total = values.reduce((sum, v) => sum + v, 0) || 1;
+      let startAngle = -90;
+
+      svg.innerHTML = '';
+      values.forEach((value, idx) => {
+        const sliceAngle = (value / total) * 360;
+        const endAngle = startAngle + sliceAngle;
+        const largeArc = sliceAngle > 180 ? 1 : 0;
+        const startX = centerX + radius * Math.cos(startAngle * Math.PI / 180);
+        const startY = centerY + radius * Math.sin(startAngle * Math.PI / 180);
+        const endX = centerX + radius * Math.cos(endAngle * Math.PI / 180);
+        const endY = centerY + radius * Math.sin(endAngle * Math.PI / 180);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${centerX} ${centerY} L ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY} Z`);
+        path.setAttribute('fill', colors[idx]);
+        path.setAttribute('opacity', '0.9');
+        svg.appendChild(path);
+        startAngle = endAngle;
+      });
+
+      const innerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      innerCircle.setAttribute('cx', centerX);
+      innerCircle.setAttribute('cy', centerY);
+      innerCircle.setAttribute('r', radius * 0.55);
+      innerCircle.setAttribute('fill', '#0f172a');
+      svg.appendChild(innerCircle);
+
+      const centerText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      centerText.setAttribute('x', centerX);
+      centerText.setAttribute('y', centerY - 6);
+      centerText.setAttribute('text-anchor', 'middle');
+      centerText.setAttribute('fill', '#f8fafc');
+      centerText.setAttribute('font-size', '18');
+      centerText.textContent = `${values[0] || 0}`;
+      svg.appendChild(centerText);
+
+      const centerSub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      centerSub.setAttribute('x', centerX);
+      centerSub.setAttribute('y', centerY + 16);
+      centerSub.setAttribute('text-anchor', 'middle');
+      centerSub.setAttribute('fill', '#94a3b8');
+      centerSub.setAttribute('font-size', '12');
+      centerSub.textContent = 'best performer';
+      svg.appendChild(centerSub);
+    }
+
+    function renderLegend(labels, colors) {
+      platformLegend.innerHTML = labels.map((label, idx) => `<span><i style="background:${colors[idx]}"></i>${label}</span>`).join('');
+    }
+
+    function buildSummary(rows) {
+      const totalRestaurants = rows.length;
+      const avgRating = rows.reduce((sum, row) => sum + toNumber(row.average_rating_both_platforms), 0) / totalRestaurants;
+      const monthlyRevenue = rows.reduce((sum, row) => sum + toNumber(row.swiggy_estimated_monthly_revenue_inr) + toNumber(row.zomato_estimated_monthly_revenue_inr), 0);
+      const cityRevenue = rows.reduce((acc, row) => {
+        const city = row.city || 'Unknown';
+        acc[city] = (acc[city] || 0) + toNumber(row.swiggy_estimated_monthly_revenue_inr) + toNumber(row.zomato_estimated_monthly_revenue_inr);
+        return acc;
+      }, {});
+      const topCity = Object.entries(cityRevenue).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+      totalRestaurantsEl.textContent = totalRestaurants.toLocaleString();
+      avgRatingEl.textContent = avgRating.toFixed(2);
+      monthlyRevenueEl.textContent = formatCurrency(monthlyRevenue);
+      topCityEl.textContent = topCity;
+
+      return { totalRestaurants, avgRating, monthlyRevenue, topCity };
+    }
+
+    function renderCharts(rows) {
+      const cityRevenue = Object.entries(rows.reduce((acc, row) => {
+        const city = row.city || 'Unknown';
+        acc[city] = (acc[city] || 0) + toNumber(row.swiggy_estimated_monthly_revenue_inr) + toNumber(row.zomato_estimated_monthly_revenue_inr);
+        return acc;
+      }, {})).sort((a, b) => b[1] - a[1]).slice(0, 7);
+      const cityLabels = cityRevenue.map(([city]) => city);
+      const cityValues = cityRevenue.map(([, value]) => value);
+      drawBarChart(revenueChart, cityLabels, cityValues, '#38bdf8');
+
+      const platformCounts = rows.reduce((acc, row) => {
+        const platform = (row.platform_performance_better || 'Balanced').trim();
+        acc[platform] = (acc[platform] || 0) + 1;
+        return acc;
+      }, {});
+      const platformEntries = Object.entries(platformCounts).slice(0, 5);
+      const platformLabels = platformEntries.map(([label]) => label);
+      const platformValues = platformEntries.map(([, count]) => count);
+      const platformColors = platformLabels.map((_, idx) => palette[idx % palette.length]);
+      drawDonutChart(platformChart, platformLabels, platformValues, platformColors);
+      renderLegend(platformLabels, platformColors);
+
+      const priceCounts = rows.reduce((acc, row) => {
+        const price = row.price_category || 'Unknown';
+        acc[price] = (acc[price] || 0) + 1;
+        return acc;
+      }, {});
+      const priceEntries = Object.entries(priceCounts).sort((a, b) => b[1] - a[1]);
+      drawBarChart(priceChart, priceEntries.map(([label]) => label), priceEntries.map(([, count]) => count), '#818cf8');
+
+      const cuisineCounts = rows.reduce((acc, row) => {
+        const cuisines = (row.cuisines || '').split(';').map(c => c.trim()).filter(Boolean);
+        cuisines.forEach(cuisine => {
+          acc[cuisine] = (acc[cuisine] || 0) + 1;
+        });
+        return acc;
+      }, {});
+      const cuisineEntries = Object.entries(cuisineCounts).sort((a, b) => b[1] - a[1]).slice(0, 7);
+      drawBarChart(cuisineChart, cuisineEntries.map(([label]) => label), cuisineEntries.map(([, count]) => count), '#34d399');
+    }
+
+    function renderTopRestaurants(rows) {
+      const ranked = rows
+        .map(row => ({
+          restaurant_name: row.restaurant_name || 'Unknown',
+          city: row.city || 'Unknown',
+          restaurant_type: row.restaurant_type || 'Unknown',
+          revenue: toNumber(row.swiggy_estimated_monthly_revenue_inr) + toNumber(row.zomato_estimated_monthly_revenue_inr)
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+      topRestaurantsBody.innerHTML = ranked.map(item => `
+        <tr>
+          <td>${item.restaurant_name}</td>
+          <td>${item.city}</td>
+          <td>${item.restaurant_type}</td>
+          <td>${formatCurrency(item.revenue)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderDashboard(rows) {
+      buildSummary(rows);
+      renderCharts(rows);
+      renderTopRestaurants(rows);
+    }
+
+    function populateCityFilter(rows) {
+      const cities = ['All Cities', ...new Set(rows.map(row => row.city).filter(Boolean))].sort();
+      cityFilter.innerHTML = cities.map(city => `<option value="${city}">${city}</option>`).join('');
+      cityFilter.addEventListener('change', () => {
+        const selected = cityFilter.value;
+        const filtered = selected === 'All Cities' ? rows : rows.filter(row => row.city === selected);
+        renderDashboard(filtered);
+      });
+    }
+
+    async function init() {
+      try {
+        const response = await fetch('swiggy_vs_zomato_3000.csv');
+        if (!response.ok) throw new Error('CSV not found');
+        const text = await response.text();
+        const rows = parseCSV(text);
+        populateCityFilter(rows);
+        renderDashboard(rows);
+      } catch (error) {
+        document.body.innerHTML = `<div style="padding:24px;color:white">Unable to load the CSV data. Please ensure the file is served from the same folder as the dashboard.</div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
+
